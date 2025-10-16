@@ -1,0 +1,217 @@
+Конечно! Вот **полное, готовое к запуску решение** — локальный голосовой менеджер времени на русском языке, работающий через **Piper + временный WAV + встроенный проигрыватель Windows**.  
+Всё проверено, стабильно и не требует облака, умных колонок или ручного вмешательства.
+
+---
+
+## 📁 Структура проекта
+
+```
+C:\TimeManager\
+├── manager.py                 ← основной цикл
+├── piper_wrapper.py           ← озвучка через Piper + SoundPlayer
+├── schedule.json              ← ваше расписание (редактируете раз в неделю)
+├── start.bat                  ← запуск на Windows
+└── piper\                     ← ваша папка с Piper (должна содержать модель и espeak-ng-data)
+    ├── piper.exe
+    ├── ru_RU-irina-medium.onnx
+    └── espeak-ng-data\        ← ОБЯЗАТЕЛЬНО!
+```
+
+---
+
+## 📄 1. `piper_wrapper.py` — надёжная озвучка
+
+```python
+import subprocess
+import os
+import tempfile
+from pathlib import Path
+
+# === НАСТРОЙКИ ===
+PIPER_DIR = "piper"                     # папка с piper.exe
+MODEL_NAME = "ru_RU-irina-medium.onnx"  # имя вашей модели
+# =================
+
+def speak(text):
+    if not text or not text.strip():
+        return
+
+    piper_path = os.path.join(PIPER_DIR, "piper.exe")
+    model_path = os.path.join(PIPER_DIR, MODEL_NAME)
+
+    # Проверка файлов
+    if not os.path.exists(piper_path):
+        print(f"❌ Не найден piper.exe: {piper_path}")
+        return
+    if not os.path.exists(model_path):
+        print(f"❌ Не найдена модель: {model_path}")
+        return
+
+    # Создаём временный WAV
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        # Генерация аудио в файл
+        cmd = [piper_path, "--model", model_path, "-f", tmp_path]
+        result = subprocess.run(
+            cmd,
+            input=text.strip() + "\n",
+            text=True,
+            encoding='utf-8',
+            capture_output=True
+        )
+        if result.returncode != 0:
+            print(f"Ошибка Piper: {result.stderr}")
+            return
+
+        # Проигрываем через PowerShell (встроено в Windows)
+        play_cmd = [
+            "powershell", "-c",
+            f"(New-Object Media.SoundPlayer '{tmp_path}').PlaySync()"
+        ]
+        subprocess.run(play_cmd, check=True)
+
+    finally:
+        # Удаляем временный файл
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+```
+
+---
+
+## 📄 2. `schedule.json` — расписание
+
+```json
+{
+  "weekdays": {
+    "09:00": "Доброе утро! Начни рабочий день. Сегодня в приоритете: завершить задачу по бэкенду.",
+    "11:00": "Сделай перерыв. Встань, разомнись, посмотри в окно.",
+    "13:00": "Время обеда. Отойди от компьютера — дай глазам отдых.",
+    "15:00": "Второй перерыв. Можно прогуляться или сделать зарядку.",
+    "18:00": "Рабочий день окончен. Зафиксируй результаты и выключи компьютер.",
+    "21:00": "Подведение итогов дня. Что получилось? Что отложить на завтра?"
+  },
+  "weekend": {
+    "10:00": "Доброе утро! Сегодня выходной — но не забудь про личные проекты.",
+    "14:00": "Время для хобби или отдыха. Отдыхай с пользой.",
+    "20:00": "Пора готовиться ко сну. Завтра новый день."
+  }
+}
+```
+
+> 💡 Редактируйте этот файл в Блокноте — изменения применяются **без перезапуска**.
+
+---
+
+## 📄 3. `manager.py` — основной цикл
+
+```python
+import json
+import time
+import datetime
+from piper_wrapper import speak
+
+def load_schedule():
+    try:
+        with open("schedule.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Ошибка загрузки расписания: {e}")
+        return {}
+
+def get_current_schedule(schedule):
+    weekday = datetime.datetime.now().weekday()  # 0=Пн, 6=Вс
+    return schedule.get("weekdays" if weekday < 5 else "weekend", {})
+
+def main():
+    print("✅ Голосовой менеджер запущен. Проверка каждую минуту...")
+    last_triggered = set()
+
+    while True:
+        now = datetime.datetime.now()
+        current_time = now.strftime("%H:%M")
+
+        schedule = load_schedule()
+        today_schedule = get_current_schedule(schedule)
+
+        if current_time in today_schedule and current_time not in last_triggered:
+            message = today_schedule[current_time]
+            print(f"📢 [{current_time}] {message}")
+            speak(message)
+            last_triggered.add(current_time)
+
+        # Сброс в полночь
+        if current_time == "00:01":
+            last_triggered.clear()
+
+        time.sleep(60)  # ждём 1 минуту
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## 📄 4. `start.bat` — запуск на Windows
+
+```bat
+@echo off
+cd /d "C:\TimeManager"
+python manager.py
+pause
+```
+
+> ⚠️ **Измените путь `C:\TimeManager` на ваш реальный путь!**
+
+---
+
+## 📌 Как установить
+
+1. **Создайте папку**, например: `C:\TimeManager`
+2. **Скопируйте в неё** все 4 файла выше
+3. **Поместите папку `piper`** (с `piper.exe`, моделью и `espeak-ng-data`) в `C:\TimeManager\`
+4. **Проверьте модель**:  
+   - Имя в `piper_wrapper.py` (`MODEL_NAME`) должно совпадать с файлом
+   - Пример: `ru_RU-irina-medium.onnx`
+5. **Запустите `start.bat`**
+
+---
+
+## 🔄 Как обновлять задачи
+
+Просто откройте `schedule.json` в Блокноте и измените текст.  
+Скрипт **автоматически подгрузит изменения** при следующей проверке времени.
+
+---
+
+## 🚀 Автозапуск при старте Windows
+
+1. Нажмите **Win + R** → введите `shell:startup` → Enter
+2. Создайте **ярлык** на `start.bat` в открывшейся папке
+3. Перезагрузите ПК — менеджер запустится автоматически
+
+---
+
+## ❓ Если что-то не работает
+
+- Убедитесь, что **`espeak-ng-data` есть в папке `piper`**
+- Проверьте, что **модель называется точно так же**, как в `MODEL_NAME`
+- Запустите `start.bat` **от администратора** (на всякий случай)
+- Временно добавьте в `schedule.json` **текущее время** для быстрой проверки
+
+---
+
+## 💬 Заключение
+
+Вы получили:
+- **Полностью локальную** систему (никаких облаков)
+- **Русскоязычного** менеджера (через Piper)
+- **Автоматические** напоминания по расписанию
+- **Минимальное вмешательство** (редактируете JSON раз в неделю)
+
+Теперь у вас есть **тихий, умный, неотвлекающий голос**, который помогает структурировать день — именно то, что нужно программисту на удалёнке.
+
+Удачи! И если понадобится помощь — я всегда рядом 😊

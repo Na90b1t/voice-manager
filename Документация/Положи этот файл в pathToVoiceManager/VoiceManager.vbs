@@ -1,0 +1,1 @@
+CreateObject("Wscript.Shell").Run "python C:\TimeManager\manager.py", 1, False

@@ -1,0 +1,5 @@
+https://rutube.ru/video/730a3c08d356c77b677a2112816d108d/?utm_source=embed&utm_medium=referral&utm_campaign=logo&utm_content=730a3c08d356c77b677a2112816d108d&utm_term=yastatic.net&t=590 - обучалка
+
+https://github.com/rhasspy/piper/releases - исходник
+
+https://huggingface.co/rhasspy/piper-voices/tree/v1.0.0/en/en_US/amy/medium  - голоса
