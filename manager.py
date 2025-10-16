@@ -17,8 +17,9 @@ def load_schedule():
         return {}
 
 def get_current_schedule(schedule):
-    weekday = datetime.datetime.now().weekday()  # 0=Пн, 6=Вс
-    return schedule.get("weekdays" if weekday < 5 else "weekend", {})
+    # Получаем текущий день недели как строку: 'monday', 'tuesday', ...
+    weekday_en = datetime.datetime.now().strftime("%A").lower() # Функция strftime("%A") возвращает английские названия дней недели
+    return schedule.get(weekday_en, {})
 
 def main():
     print("✅ Голосовой менеджер запущен. Проверка каждую минуту...")
